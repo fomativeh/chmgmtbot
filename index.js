@@ -300,6 +300,8 @@ bot.command("rmuser", async (ctx) => {
 
       await User.findOneAndUpdate({ userId }, { isPremiumActive: false });
       await banUserFromChannels(userId)
+      const customText = await CustomText.find()
+      await bot.telegram.sendMessage(eachUser.id, customText[0].value, {parse_mode:"Markdown"})
       await ctx.reply(`User ${userId} removed from premium list.`);
     } catch (error) {
       handleError(error, ctx);
@@ -353,9 +355,9 @@ bot.command("settext", async (ctx) => {
       }
 
       const existingTextInDb = await CustomText.find();
-      if (existingTextInDb.value) {
-        existingTextInDb.value = customText;
-        await existingTextInDb.save();
+      if (existingTextInDb[0].value) {
+        existingTextInDb[0].value = customText;
+        await existingTextInDb[0].save();
       } else {
         const newCustomText = new CustomText({ value: customText });
         await newCustomText.save();
@@ -413,6 +415,8 @@ const initPremiumPolice = async () => {
         eachUser.isPremiumActive = false;
         await eachUser.save();
         await banUserFromChannels(eachUser.userId);
+        const customText = await CustomText.find()
+        await bot.telegram.sendMessage(eachUser.id, customText[0].value, {parse_mode:"Markdown"})
       }
     });
     initPremiumPolice(); //Recursion
