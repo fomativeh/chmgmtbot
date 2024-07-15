@@ -16,14 +16,8 @@ module.exports = banUserFromChannels = async (userId) => {
     try {
       const allChannels = await Channel.find();
       allChannels.forEach(async (eachChannel) => {
-        if (eachChannel.channelUsername) {
-          await bot.telegram.banChatMember(
-            `@${eachChannel.channelUsername}`,
-            userId
-          );
-        } else {
-          await bot.telegram.banChatMember(`${eachChannel.channelId}`, userId);
-        }
+        await bot.telegram.banChatMember(`${eachChannel.channelId}`, userId);
+        console.log(`User ${userId} banned`)
       });
     } catch (error) {
       handleError(error);

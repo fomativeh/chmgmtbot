@@ -32,7 +32,7 @@ bot.start(async (ctx) => {
     try {
       const { id, username } = ctx.from;
 
-        // Show this to admins
+      // Show this to admins
       if (id == ADMIN_ID) {
         return showAdminMenu(ctx);
       }
@@ -96,25 +96,12 @@ You're on premium, so you have access to the channels below:
       `;
       const channelsMarkupRow = [];
       allChannels.forEach((eachChannel) => {
-        let linkText = eachChannel.channelUsername
-          ? `${eachChannel.channelUsername}`
-          : eachChannel.title;
-
-        if (eachChannel.channelUsername) {
-          channelsMarkupRow.push([
-            {
-              text: `${linkText}`,
-              url: `t.me/${eachChannel.channelUsername}`,
-            },
-          ]);
-        } else {
-          channelsMarkupRow.push([
-            {
-              text: `${linkText}`,
-              url: `${eachChannel.channelInviteLink}`,
-            },
-          ]);
-        }
+        channelsMarkupRow.push([
+          {
+            text: `${eachChannel.title}`,
+            url: `${eachChannel.channelInviteLink}`,
+          },
+        ]);
       });
 
       ctx.reply(replyText, {
@@ -134,43 +121,39 @@ You're on premium, so you have access to the channels below:
 // Command to add channel
 bot.command("nadd", async (ctx) => {
   queue.enqueue(async () => {
-    let isAdmin = useAdminAuth(ctx);
-    if (!isAdmin) {
-      return await ctx.reply("Only Admins can do this.");
-    }
+    // let isAdmin = useAdminAuth(ctx);
+    // if (!isAdmin) {
+    //   return await ctx.reply("Only Admins can do this.");
+    // }
 
-    const [command, channelId] = ctx.message.text.split(" ");
+    const [command, channelId, channelLink] = ctx.message.text.split(" ");
     try {
       if (!channelId) {
         return await ctx.reply("Channel id or username is required");
       }
 
-      const addedBy = ctx.from.username;
+      if (!channelLink) {
+        return await ctx.reply(
+          "Channel link is required. Make sure it is a valid link!"
+        );
+      }
+
+      // const addedBy = ctx.from.username;
 
       const chat = await bot.telegram.getChat(channelId);
       // return console.log(chat)
       let newChannelDetails = {};
-
-      //For public channels (have usernames)
-      if (chat.username) {
-        newChannelDetails = {
-          channelId,
-          channelUsername: chat.username,
-          title: chat.title,
-        };
-      } else {
-        //For private channels (have only invite links)
-        newChannelDetails = {
-          channelId,
-          channelInviteLink: chat.invite_link,
-          title: chat.title,
-        };
-      }
+      //For private channels (have only invite links)
+      newChannelDetails = {
+        channelId,
+        channelInviteLink: channelLink,
+        title: chat.title ? chat.title : "Join channel",
+      };
 
       const newChannel = new Channel(newChannelDetails);
 
       await newChannel.save();
-      ctx.reply(`Channel ${channelId} added successfully`);
+      ctx.reply(`Channel ${channelId} added successfully.`);
     } catch (error) {
       //For other errors
       handleError(error, ctx);
@@ -191,7 +174,7 @@ bot.command("nadd", async (ctx) => {
 bot.command("rmnch", async (ctx) => {
   queue.enqueue(async () => {
     let isAdmin = useAdminAuth(ctx);
-    console.log(isAdmin);
+    (isAdmin);
     if (!isAdmin) {
       return await ctx.reply("Only Admins can do this.");
     }
@@ -227,20 +210,10 @@ bot.command("nchannels", async (ctx) => {
       const allChannels = await Channel.find();
       if (allChannels.length > 0) {
         let replyText = `
-    All channels:`;
+*ALL CHANNELS*`;
         allChannels.forEach((eachChannel) => {
-          console.log(eachChannel);
-          //For public channels
-          if (eachChannel.channelUsername) {
-            replyText += `\n\nChannel ID: \`${
-              eachChannel.channelId
-            }\`\nTitle: *${eachChannel.title || "No Title"}*\nLink: t.me/${
-              eachChannel.channelUsername
-            }`;
-          } else {
             //For private channels
-            replyText += `\n\nChannel ID: \`${eachChannel.channelId}\`\nTitle: *${eachChannel.title}*\nLink: ${eachChannel.channelInviteLink}`;
-          }
+            replyText += `\n\nChannel ID: \`${eachChannel.channelId}\`\nTitle: *${eachChannel.title}*\n[Visit Channel](${eachChannel.channelInviteLink})`;
         });
 
         await ctx.reply(replyText, { parse_mode: "Markdown" });
@@ -324,7 +297,7 @@ bot.command("rmuser", async (ctx) => {
       }
 
       await User.findOneAndUpdate({ userId }, { isPremiumActive: false });
-      await bot.telegram.banChatMember("@ajayicy", userId);
+      await banUserFromChannels(userId)
       await ctx.reply(`User ${userId} removed from premium list.`);
     } catch (error) {
       handleError(error, ctx);
@@ -344,8 +317,9 @@ bot.command("nusers", async (ctx) => {
       const users = await User.find();
       if (users.length > 0) {
         let replyText = `All users:`;
+        let usersToMap = users.filter((eachUser)=>eachUser.isPremiumActive==true)
 
-        users.forEach((eachUser) => {
+        usersToMap.forEach((eachUser) => {
           const expiresIn = getRemainingDuration(
             eachUser.premiumExpirationDate
           );

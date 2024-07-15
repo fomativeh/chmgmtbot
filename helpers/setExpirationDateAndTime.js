@@ -1,10 +1,11 @@
 module.exports = setExpirationDateAndTime = (duration) => {
-  const regex = /^(\d+)([smhrd])$/;
+  const regex = /^(\d+)(s|min|hr|d)$/;
   const match = duration.match(regex);
 
   if (!match) {
     return false;
   }
+
 
   const value = parseInt(match[1]);
   const unit = match[2];
@@ -18,7 +19,7 @@ module.exports = setExpirationDateAndTime = (duration) => {
     case "min":
       now.setMinutes(now.getMinutes() + value);
       break;
-    case "h":
+    case "hr":
       now.setHours(now.getHours() + value);
       break;
     case "d":
