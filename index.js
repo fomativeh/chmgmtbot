@@ -14,6 +14,7 @@ const setExpirationDateAndTime = require("./helpers/setExpirationDateAndTime");
 const express = require("express");
 const getRemainingDuration = require("./helpers/getRemainingDuration");
 const banUserFromChannels = require("./helpers/banUserFromChannels");
+const unbanUserFromChannels = require("./helpers/unbanUserFromChannels");
 
 // Create a queue instance
 const queue = new Queue({
@@ -259,6 +260,7 @@ bot.command("adduser", async (ctx) => {
         userDetails.isPremiumActive = true;
         userDetails.premiumExpirationDate = expirationDate;
         await userDetails.save();
+        await unbanUserFromChannels(userId)
       } else {
         const newUser = new User({
           userId,
