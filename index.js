@@ -32,7 +32,7 @@ bot.start(async (ctx) => {
     try {
       const { id, username } = ctx.from;
 
-      //   Show this to admins
+        // Show this to admins
       if (id == ADMIN_ID) {
         return showAdminMenu(ctx);
       }
@@ -97,7 +97,7 @@ You're on premium, so you have access to the channels below:
       const channelsMarkupRow = [];
       allChannels.forEach((eachChannel) => {
         let linkText = eachChannel.channelUsername
-          ? `@${eachChannel.channelUsername}`
+          ? `${eachChannel.channelUsername}`
           : eachChannel.title;
 
         if (eachChannel.channelUsername) {
@@ -111,7 +111,7 @@ You're on premium, so you have access to the channels below:
           channelsMarkupRow.push([
             {
               text: `${linkText}`,
-              url: `t.me/${eachChannel.channelInviteLink}`,
+              url: `${eachChannel.channelInviteLink}`,
             },
           ]);
         }
@@ -191,7 +191,7 @@ bot.command("nadd", async (ctx) => {
 bot.command("rmnch", async (ctx) => {
   queue.enqueue(async () => {
     let isAdmin = useAdminAuth(ctx);
-    console.log(isAdmin)
+    console.log(isAdmin);
     if (!isAdmin) {
       return await ctx.reply("Only Admins can do this.");
     }
