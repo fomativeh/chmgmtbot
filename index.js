@@ -134,7 +134,7 @@ You're on premium, so you have access to the channels below:
 // Command to add channel
 bot.command("nadd", async (ctx) => {
   queue.enqueue(async () => {
-    let isAdmin = await useAdminAuth(ctx);
+    let isAdmin = useAdminAuth(ctx);
     if (!isAdmin) {
       return await ctx.reply("Only Admins can do this.");
     }
@@ -190,7 +190,8 @@ bot.command("nadd", async (ctx) => {
 // Command to remove channel
 bot.command("rmnch", async (ctx) => {
   queue.enqueue(async () => {
-    let isAdmin = await useAdminAuth(ctx);
+    let isAdmin = useAdminAuth(ctx);
+    console.log(isAdmin)
     if (!isAdmin) {
       return await ctx.reply("Only Admins can do this.");
     }
@@ -218,7 +219,7 @@ bot.command("rmnch", async (ctx) => {
 bot.command("nchannels", async (ctx) => {
   queue.enqueue(async () => {
     try {
-      let isAdmin = await useAdminAuth(ctx);
+      let isAdmin = useAdminAuth(ctx);
       if (!isAdmin) {
         return await ctx.reply("Only Admins can do this.");
       }
@@ -257,7 +258,7 @@ bot.command("adduser", async (ctx) => {
   queue.enqueue(async () => {
     const [command, userId, days] = ctx.message.text.split(" ");
     try {
-      let isAdmin = await useAdminAuth(ctx);
+      let isAdmin = useAdminAuth(ctx);
       if (!isAdmin) {
         return await ctx.reply("Only Admins can do this.");
       }
@@ -308,7 +309,7 @@ bot.command("rmuser", async (ctx) => {
     const [command, userId] = ctx.message.text.split(" ");
 
     try {
-      let isAdmin = await useAdminAuth(ctx);
+      let isAdmin = useAdminAuth(ctx);
       if (!isAdmin) {
         return await ctx.reply("Only Admins can do this.");
       }
@@ -335,7 +336,7 @@ bot.command("rmuser", async (ctx) => {
 bot.command("nusers", async (ctx) => {
   queue.enqueue(async () => {
     try {
-      let isAdmin = await useAdminAuth(ctx);
+      let isAdmin = useAdminAuth(ctx);
       if (!isAdmin) {
         return await ctx.reply("Only Admins can do this.");
       }
@@ -365,7 +366,7 @@ bot.command("nusers", async (ctx) => {
 bot.command("settext", async (ctx) => {
   queue.enqueue(async () => {
     try {
-      let isAdmin = await useAdminAuth(ctx);
+      let isAdmin = useAdminAuth(ctx);
       if (!isAdmin) {
         return await ctx.reply("Only Admins can do this.");
       }
