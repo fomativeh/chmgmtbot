@@ -96,12 +96,25 @@ You're on premium, so you have access to the channels below:
       `;
       const channelsMarkupRow = [];
       allChannels.forEach((eachChannel) => {
-        channelsMarkupRow.push([
-          {
-            text: `${eachChannel.channelUsername}`,
-            url: `t.me/${eachChannel.channelUsername}`,
-          },
-        ]);
+        let linkText = eachChannel.channelUsername
+          ? `@${eachChannel.channelUsername}`
+          : eachChannel.title;
+
+        if (eachChannel.channelUsername) {
+          channelsMarkupRow.push([
+            {
+              text: `${linkText}`,
+              url: `t.me/${eachChannel.channelUsername}`,
+            },
+          ]);
+        } else {
+          channelsMarkupRow.push([
+            {
+              text: `${linkText}`,
+              url: `t.me/${eachChannel.channelInviteLink}`,
+            },
+          ]);
+        }
       });
 
       ctx.reply(replyText, {
