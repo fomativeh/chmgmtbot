@@ -15,7 +15,7 @@ module.exports = setExpirationDateAndTime = (duration) => {
     case "s":
       now.setSeconds(now.getSeconds() + value);
       break;
-    case "m":
+    case "min":
       now.setMinutes(now.getMinutes() + value);
       break;
     case "h":

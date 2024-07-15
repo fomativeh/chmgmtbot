@@ -11,7 +11,9 @@ const handleError = require("./helpers/handleError");
 const showAdminMenu = require("./helpers/showAdminMenu");
 const useAdminAuth = require("./helpers/useAdminAuth");
 const setExpirationDateAndTime = require("./helpers/setExpirationDateAndTime");
-const express = require("express")
+const express = require("express");
+const getRemainingDuration = require("./helpers/getRemainingDuration");
+const banUserFromChannels = require("./helpers/banUserFromChannels");
 
 // Create a queue instance
 const queue = new Queue({
@@ -23,7 +25,7 @@ const queue = new Queue({
 const botToken = process.env.BOT_TOKEN;
 const bot = new Telegraf(botToken);
 const ADMIN_ID = process.env.ADMIN_ID;
-const app = express()
+const app = express();
 
 bot.start(async (ctx) => {
   queue.enqueue(async () => {
@@ -62,8 +64,9 @@ bot.start(async (ctx) => {
           userAccount.isPremiumActive = false;
           await userAccount.save();
 
-          //Remove them from the channel
-          await bot.telegram.banChatMember("@ajayicy", id);
+          //Ban them from the channels
+          await banUserFromChannels(id);
+
           return await ctx.reply(
             `Hi, *${username}*.\n\nYour premium subscription is expired. Please contact admin @Mrrobot75 to  renew your subscription.`,
             { parse_mode: "Markdown" }
@@ -117,256 +120,285 @@ You're on premium, so you have access to the channels below:
 
 // Command to add channel
 bot.command("nadd", async (ctx) => {
-  let isAdmin = await useAdminAuth(ctx);
-  if (!isAdmin) {
-    return await ctx.reply("Only Admins can do this.");
-  }
-
-  const [command, channelId] = ctx.message.text.split(" ");
-  try {
-    if (!channelId) {
-      return await ctx.reply("Channel id or username is required");
+  queue.enqueue(async () => {
+    let isAdmin = await useAdminAuth(ctx);
+    if (!isAdmin) {
+      return await ctx.reply("Only Admins can do this.");
     }
 
-    const addedBy = ctx.from.username;
+    const [command, channelId] = ctx.message.text.split(" ");
+    try {
+      if (!channelId) {
+        return await ctx.reply("Channel id or username is required");
+      }
 
-    const chat = await bot.telegram.getChat(channelId);
-    // return console.log(chat)
-    let newChannelDetails = {};
+      const addedBy = ctx.from.username;
 
-    //For public channels (have usernames)
-    if (chat.username) {
-      newChannelDetails = {
-        channelId,
-        channelUsername: chat.username,
-        title: chat.title,
-      };
-    } else {
-      //For private channels (have only invite links)
-      newChannelDetails = {
-        channelId,
-        channelInviteLink: chat.invite_link,
-        title: chat.title,
-      };
+      const chat = await bot.telegram.getChat(channelId);
+      // return console.log(chat)
+      let newChannelDetails = {};
+
+      //For public channels (have usernames)
+      if (chat.username) {
+        newChannelDetails = {
+          channelId,
+          channelUsername: chat.username,
+          title: chat.title,
+        };
+      } else {
+        //For private channels (have only invite links)
+        newChannelDetails = {
+          channelId,
+          channelInviteLink: chat.invite_link,
+          title: chat.title,
+        };
+      }
+
+      const newChannel = new Channel(newChannelDetails);
+
+      await newChannel.save();
+      ctx.reply(`Channel ${channelId} added successfully`);
+    } catch (error) {
+      //For other errors
+      handleError(error, ctx);
+
+      //For invalid channel id or username
+      if (
+        error.response &&
+        error.response.error_code === 400 &&
+        error.response.description === "Bad Request: chat not found"
+      ) {
+        ctx.reply("Invalid channel id");
+      }
     }
-
-    const newChannel = new Channel(newChannelDetails);
-
-    await newChannel.save();
-    ctx.reply(`Channel ${channelId} added successfully`);
-  } catch (error) {
-    //For other errors
-    handleError(error, ctx);
-
-    //For invalid channel id or username
-    if (
-      error.response &&
-      error.response.error_code === 400 &&
-      error.response.description === "Bad Request: chat not found"
-    ) {
-      ctx.reply("Invalid channel id");
-    }
-  }
+  });
 });
 
 // Command to remove channel
 bot.command("rmnch", async (ctx) => {
-  let isAdmin = await useAdminAuth(ctx);
-  if (!isAdmin) {
-    return await ctx.reply("Only Admins can do this.");
-  }
+  queue.enqueue(async () => {
+    let isAdmin = await useAdminAuth(ctx);
+    if (!isAdmin) {
+      return await ctx.reply("Only Admins can do this.");
+    }
 
-  const [command, channelId] = ctx.message.text.split(" ");
-  if (!channelId) {
-    return ctx.reply("Channel id or username is required");
-  }
+    const [command, channelId] = ctx.message.text.split(" ");
+    if (!channelId) {
+      return ctx.reply("Channel id or username is required");
+    }
 
-  const channelExists = await Channel.findOne({ channelId });
-  if (!channelExists) {
-    return await ctx.reply("Channel does not exist in this bot.");
-  }
+    const channelExists = await Channel.findOne({ channelId });
+    if (!channelExists) {
+      return await ctx.reply("Channel does not exist in this bot.");
+    }
 
-  try {
-    await Channel.findOneAndDelete({ channelId });
-    ctx.reply(`Channel ${channelId} removed`);
-  } catch (error) {
-    handleError(error, ctx);
-  }
+    try {
+      await Channel.findOneAndDelete({ channelId });
+      ctx.reply(`Channel ${channelId} removed`);
+    } catch (error) {
+      handleError(error, ctx);
+    }
+  });
 });
 
 // Command to show all channels
 bot.command("nchannels", async (ctx) => {
-  try {
-    const allChannels = await Channel.find();
-    if (allChannels.length > 0) {
-      let replyText = `
-All channels:`;
-      allChannels.forEach((eachChannel) => {
-        //For public channels
-        if (eachChannel.username) {
-          replyText += `\n\nChannel ID: *${eachChannel.channelId}*\nTitle: *${eachChannel.title}*\nLink: t.me/${eachChannel.channelUsername}`;
-        } else {
-          //For private channels
-          replyText += `\n\nChannel ID: *${eachChannel.channelId}*\nTitle: *${eachChannel.title}*\nLink: ${eachChannel.invite_link}`;
-        }
-      });
+  queue.enqueue(async () => {
+    try {
+      let isAdmin = await useAdminAuth(ctx);
+      if (!isAdmin) {
+        return await ctx.reply("Only Admins can do this.");
+      }
 
-      await ctx.reply(replyText, { parse_mode: "Markdown" });
-    } else {
-      ctx.reply("No channels found.");
+      const allChannels = await Channel.find();
+      if (allChannels.length > 0) {
+        let replyText = `
+    All channels:`;
+        allChannels.forEach((eachChannel) => {
+          console.log(eachChannel);
+          //For public channels
+          if (eachChannel.channelUsername) {
+            replyText += `\n\nChannel ID: \`${
+              eachChannel.channelId
+            }\`\nTitle: *${eachChannel.title || "No Title"}*\nLink: t.me/${
+              eachChannel.channelUsername
+            }`;
+          } else {
+            //For private channels
+            replyText += `\n\nChannel ID: \`${eachChannel.channelId}\`\nTitle: *${eachChannel.title}*\nLink: ${eachChannel.channelInviteLink}`;
+          }
+        });
+
+        await ctx.reply(replyText, { parse_mode: "Markdown" });
+      } else {
+        ctx.reply("No channels found.");
+      }
+    } catch (error) {
+      handleError(error, ctx);
     }
-  } catch (error) {
-    handleError(error, ctx);
-  }
+  });
 });
 
 // Command to add user with subscription days
 bot.command("adduser", async (ctx) => {
-  const [command, userId, days] = ctx.message.text.split(" ");
-  try {
-    let isAdmin = await useAdminAuth(ctx);
-    if (!isAdmin) {
-      return await ctx.reply("Only Admins can do this.");
+  queue.enqueue(async () => {
+    const [command, userId, days] = ctx.message.text.split(" ");
+    try {
+      let isAdmin = await useAdminAuth(ctx);
+      if (!isAdmin) {
+        return await ctx.reply("Only Admins can do this.");
+      }
+
+      if (!userId) {
+        return await ctx.reply("User id is required.");
+      }
+
+      if (!days) {
+        return await ctx.reply("Subscription days is required.");
+      }
+
+      const expirationDate = setExpirationDateAndTime(days);
+      if (!expirationDate) {
+        return await ctx.reply(
+          "Invalid duration format. Use formats like 2s, 2min, 2hr, 2d after userId.\nExample: /adduser 87438784 30d"
+        );
+      }
+
+      const addedBy = ctx.from.username;
+      const userDetails = await User.findOne({ userId });
+
+      if (userDetails) {
+        //If user already exists
+        userDetails.isPremiumActive = true;
+        userDetails.premiumExpirationDate = expirationDate;
+        await userDetails.save();
+      } else {
+        const newUser = new User({
+          userId,
+          isPremiumActive: true,
+          premiumExpirationDate: expirationDate,
+          addedBy,
+        });
+        await newUser.save();
+      }
+
+      await ctx.reply(`User ${userId} added for ${days} by @${addedBy}`);
+    } catch (error) {
+      handleError(error, ctx);
     }
-
-    if (!userId) {
-      return await ctx.reply("User id is required.");
-    }
-
-    if (!days) {
-      return await ctx.reply("Subscription days is required.");
-    }
-
-    const expirationDate = setExpirationDateAndTime(days);
-    if (!expirationDate) {
-      return await ctx.reply(
-        "Invalid duration format. Use formats like 2s, 2m, 2hr, 2d after userId.\nExample: /adduser 87438784 30d"
-      );
-    }
-
-    const addedBy = ctx.from.username;
-    const userDetails = await User.findOne({ userId });
-
-    if (userDetails) {
-      //If user already exists
-      userDetails.isPremiumActive = true;
-      userDetails.premiumExpirationDate = expirationDate;
-      await userDetails.save();
-    } else {
-      const newUser = new User({
-        userId,
-        isPremiumActive: true,
-        premiumExpirationDate: expirationDate,
-        addedBy,
-      });
-      await newUser.save();
-    }
-
-    await ctx.reply(`User ${userId} added for ${days} by @${addedBy}`);
-  } catch (error) {
-    handleError(error, ctx);
-  }
+  });
 });
 
 // Command to remove user
 bot.command("rmuser", async (ctx) => {
-  const [command, userId] = ctx.message.text.split(" ");
+  queue.enqueue(async () => {
+    const [command, userId] = ctx.message.text.split(" ");
 
-  try {
-    let isAdmin = await useAdminAuth(ctx);
-    if (!isAdmin) {
-      return await ctx.reply("Only Admins can do this.");
+    try {
+      let isAdmin = await useAdminAuth(ctx);
+      if (!isAdmin) {
+        return await ctx.reply("Only Admins can do this.");
+      }
+
+      if (!userId) {
+        return await ctx.reply("User id is required.");
+      }
+
+      const userExists = await User.findOne({ userId });
+      if (!userExists) {
+        return await ctx.reply("User does not exist in this bot.");
+      }
+
+      await User.findOneAndUpdate({ userId }, { isPremiumActive: false });
+      await bot.telegram.banChatMember("@ajayicy", userId);
+      await ctx.reply(`User ${userId} removed from premium list.`);
+    } catch (error) {
+      handleError(error, ctx);
     }
-
-    if (!userId) {
-      return await ctx.reply("User id is required.");
-    }
-
-    const userExists = await User.findOne({ userId });
-    if (!userExists) {
-      return await ctx.reply("User does not exist in this bot.");
-    }
-
-    await User.findOneAndUpdate({ userId }, { isPremiumActive: false });
-    await bot.telegram.banChatMember("@ajayicy", userId);
-    await ctx.reply(`User ${userId} removed from premium list.`);
-  } catch (error) {
-    handleError(error, ctx);
-  }
+  });
 });
 
 // Command to show all users
 bot.command("nusers", async (ctx) => {
-  try {
-    let isAdmin = await useAdminAuth(ctx);
-    if (!isAdmin) {
-      return await ctx.reply("Only Admins can do this.");
+  queue.enqueue(async () => {
+    try {
+      let isAdmin = await useAdminAuth(ctx);
+      if (!isAdmin) {
+        return await ctx.reply("Only Admins can do this.");
+      }
+
+      const users = await User.find();
+      if (users.length > 0) {
+        let replyText = `All users:`;
+
+        users.forEach((eachUser) => {
+          const expiresIn = getRemainingDuration(
+            eachUser.premiumExpirationDate
+          );
+          replyText += `\n\nUser ID: \`${eachUser.userId}\`\nPremium: *${eachUser.isPremiumActive}*\nPremium Time Left: *${expiresIn}*`;
+        });
+
+        await ctx.reply(replyText, { parse_mode: "Markdown" });
+      } else {
+        await ctx.reply("No users found.");
+      }
+    } catch (error) {
+      handleError(error, ctx);
     }
-
-    const users = await User.find();
-    if (users.length > 0) {
-      let replyText = `All users:`;
-
-      users.forEach((eachUser) => {
-        replyText += `\n\nUser ID: *${eachUser.userId}*\nPremium: *${eachUser.isPremiumActive}*\n`;
-      });
-
-      await ctx.reply(replyText, { parse_mode: "Markdown" });
-    } else {
-      await ctx.reply("No users found.");
-    }
-  } catch (error) {
-    handleError(error, ctx);
-  }
+  });
 });
 
 // Command to set custom text for banned users
 bot.command("settext", async (ctx) => {
-  try {
-    let isAdmin = await useAdminAuth(ctx);
-    if (!isAdmin) {
-      return await ctx.reply("Only Admins can do this.");
-    }
+  queue.enqueue(async () => {
+    try {
+      let isAdmin = await useAdminAuth(ctx);
+      if (!isAdmin) {
+        return await ctx.reply("Only Admins can do this.");
+      }
 
-    const customText = ctx.message.text.split(" ").slice(1).join(" ");
-    if (!customText) {
-      return await ctx.reply("Text value is required");
-    }
+      const customText = ctx.message.text.split(" ").slice(1).join(" ");
+      if (!customText) {
+        return await ctx.reply("Text value is required");
+      }
 
-    const existingTextInDb = await CustomText.find();
-    if (existingTextInDb.value) {
-      existingTextInDb.value = customText;
-      await existingTextInDb.save();
-    } else {
-      const newCustomText = new CustomText({ value: customText });
-      await newCustomText.save();
-    }
+      const existingTextInDb = await CustomText.find();
+      if (existingTextInDb.value) {
+        existingTextInDb.value = customText;
+        await existingTextInDb.save();
+      } else {
+        const newCustomText = new CustomText({ value: customText });
+        await newCustomText.save();
+      }
 
-    await ctx.reply(`Custom text set: ${customText}`);
-  } catch (error) {
-    handleError(error, ctx);
-  }
+      await ctx.reply(`Custom text set: ${customText}`);
+    } catch (error) {
+      handleError(error, ctx);
+    }
+  });
 });
 
 bot.on("chat_join_request", async (ctx) => {
-  try {
-    const chatId = ctx.update.chat_join_request.chat.id;
-    const userId = ctx.update.chat_join_request.from.id;
-    const allUsers = await User.find();
+  queue.enqueue(async () => {
+    try {
+      const chatId = ctx.update.chat_join_request.chat.id;
+      const userId = ctx.update.chat_join_request.from.id;
+      const allUsers = await User.find();
 
-    allUsers.forEach(async (eachUser) => {
-      if (eachUser.userId == userId) {
-        if (eachUser.isPremiumActive) {
-          await bot.telegram.approveChatJoinRequest(chatId, userId);
-          console.log("Auto approved premium user");
-        } else {
-          console.log("Ignored non premium user request");
+      allUsers.forEach(async (eachUser) => {
+        if (eachUser.userId == userId) {
+          if (eachUser.isPremiumActive) {
+            await bot.telegram.approveChatJoinRequest(chatId, userId);
+            console.log("Auto approved premium user");
+          } else {
+            console.log("Ignored non premium user request");
+          }
         }
-      }
-    });
-  } catch (error) {
-    handleError(error);
-  }
+      });
+    } catch (error) {
+      handleError(error);
+    }
+  });
 });
 
 bot.telegram.setMyCommands([
@@ -380,17 +412,40 @@ bot.telegram.setMyCommands([
   { command: "settext", description: "Set custom text for banned users" },
 ]);
 
+//Constantly verifies premium accounts
+
+const initPremiumPolice = async () => {
+  try {
+    const allUsers = await User.find();
+    allUsers.forEach(async (eachUser) => {
+      const expiresIn = getRemainingDuration(eachUser.premiumExpirationDate);
+      if (expiresIn == "Expired") {
+        eachUser.isPremiumActive = false;
+        await eachUser.save();
+        await banUserFromChannels(eachUser.userId);
+      }
+    });
+    initPremiumPolice(); //Recursion
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 // MongoDB connection string
 const MONGODB_URI = process.env.URI;
-const port = process.env.PORT
-app.listen(port || 5000, ()=>{
-console.log(`Listening on port ${port}`)
-})
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+  console.log(`Listening on port ${port}`);
+});
 
 // Connect to MongoDB
 mongoose
   .connect(MONGODB_URI)
-  .then(() => console.log("MongoDB connected"))
+  .then(() => {
+    console.log("MongoDB connected");
+    //Start checks on premium
+    initPremiumPolice();
+  })
   .catch((err) => console.error("MongoDB connection error:", err));
 
 // Launch the bot
