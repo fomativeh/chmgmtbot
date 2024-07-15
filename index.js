@@ -11,6 +11,7 @@ const handleError = require("./helpers/handleError");
 const showAdminMenu = require("./helpers/showAdminMenu");
 const useAdminAuth = require("./helpers/useAdminAuth");
 const setExpirationDateAndTime = require("./helpers/setExpirationDateAndTime");
+const express = require("express")
 
 // Create a queue instance
 const queue = new Queue({
@@ -22,6 +23,7 @@ const queue = new Queue({
 const botToken = process.env.BOT_TOKEN;
 const bot = new Telegraf(botToken);
 const ADMIN_ID = process.env.ADMIN_ID;
+const app = express()
 
 bot.start(async (ctx) => {
   queue.enqueue(async () => {
@@ -380,6 +382,10 @@ bot.telegram.setMyCommands([
 
 // MongoDB connection string
 const MONGODB_URI = process.env.URI;
+const port = process.env.PORT
+app.listen(port || 5000, ()=>{
+console.log(`Listening on port ${port}`)
+})
 
 // Connect to MongoDB
 mongoose
