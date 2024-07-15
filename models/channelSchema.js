@@ -1,4 +1,3 @@
-const { channelLink } = require("discord.js");
 const { model, Schema } = require("mongoose");
 
 const channelSchema = new Schema({

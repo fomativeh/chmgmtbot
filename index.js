@@ -10,7 +10,6 @@ const Queue = require("queue-promise");
 const handleError = require("./helpers/handleError");
 const showAdminMenu = require("./helpers/showAdminMenu");
 const useAdminAuth = require("./helpers/useAdminAuth");
-const { retrieveLaunchData } = require("@tma.js/sdk");
 const setExpirationDateAndTime = require("./helpers/setExpirationDateAndTime");
 
 // Create a queue instance
